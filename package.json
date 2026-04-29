@@ -1,0 +1,39 @@
+{
+  "name": "linkedin-social-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for LinkedIn social actions — post, comment, react, and manage org pages via Claude AI",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "auth": "node dist/auth-cli.js"
+  },
+  "bin": {
+    "linkedin-social-mcp": "./dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "linkedin",
+    "mcp",
+    "claude",
+    "social-media",
+    "model-context-protocol",
+    "ai"
+  ],
+  "license": "MIT"
+}
