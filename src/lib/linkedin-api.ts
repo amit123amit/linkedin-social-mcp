@@ -247,6 +247,61 @@ export class LinkedInApiClient {
     );
   }
 
+  // ─── Scheduling (w_member_social / w_organization_social) ────────────────
+
+  async createScheduledPost(params: {
+    authorUrn: string;
+    text: string;
+    scheduledPublishTime: number;
+    visibility?: string;
+    articleUrl?: string;
+    articleTitle?: string;
+    articleDescription?: string;
+    imageAssetUrn?: string;
+  }): Promise<{ id: string }> {
+    const mediaCategory = params.imageAssetUrn
+      ? 'IMAGE'
+      : params.articleUrl
+      ? 'ARTICLE'
+      : 'NONE';
+
+    const media: object[] = [];
+    if (params.imageAssetUrn) {
+      media.push({ status: 'READY', media: params.imageAssetUrn });
+    } else if (params.articleUrl) {
+      media.push({
+        status: 'READY',
+        originalUrl: params.articleUrl,
+        ...(params.articleTitle && { title: { text: params.articleTitle } }),
+        ...(params.articleDescription && { description: { text: params.articleDescription } }),
+      });
+    }
+
+    return this.request<{ id: string }>('POST', '/ugcPosts', {
+      author: params.authorUrn,
+      lifecycleState: 'DRAFT',
+      scheduledPublishTime: params.scheduledPublishTime,
+      specificContent: {
+        'com.linkedin.ugc.ShareContent': {
+          shareCommentary: { text: params.text },
+          shareMediaCategory: mediaCategory,
+          ...(media.length > 0 && { media }),
+        },
+      },
+      visibility: {
+        'com.linkedin.ugc.MemberNetworkVisibility': params.visibility ?? 'PUBLIC',
+      },
+    });
+  }
+
+  async getScheduledPosts(authorUrn: string, count = 20, start = 0): Promise<ApiListResponse<UgcPost>> {
+    const encoded = encodeURIComponent(authorUrn);
+    return this.request<ApiListResponse<UgcPost>>(
+      'GET',
+      `/ugcPosts?q=authors&authors=List(${encoded})&lifecycleState=DRAFT&count=${count}&start=${start}`,
+    );
+  }
+
   // ─── Image Upload (w_member_social / w_organization_social) ───────────────
 
   async registerImageUpload(ownerUrn: string): Promise<RegisterUploadResponse> {

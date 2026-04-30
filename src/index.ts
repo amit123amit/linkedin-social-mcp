@@ -13,6 +13,7 @@ import { createTextPostTool, createLinkPostTool, deletePostTool, createCommentTo
 import { createOrgTextPostTool, createOrgLinkPostTool, deleteOrgPostTool, getOrgPostsTool, createOrgCommentTool, getPostCommentsTool, getPostReactionsTool, handleCreateOrgTextPost, handleCreateOrgLinkPost, handleDeleteOrgPost, handleGetOrgPosts, handleCreateOrgComment, handleGetPostComments, handleGetPostReactions } from './tools/org-posts.js';
 import { getOrganizationTool, updateOrganizationTool, getOrganizationAdminsTool, handleGetOrganization, handleUpdateOrganization, handleGetOrganizationAdmins } from './tools/org-management.js';
 import { getFollowerStatisticsTool, getPageStatisticsTool, getContentStatisticsTool, handleGetFollowerStatistics, handleGetPageStatistics, handleGetContentStatistics } from './tools/org-analytics.js';
+import { previewPostTool, schedulePostTool, scheduleOrgPostTool, listScheduledPostsTool, cancelScheduledPostTool, handlePreviewPost, handleSchedulePost, handleScheduleOrgPost, handleListScheduledPosts, handleCancelScheduledPost } from './tools/scheduling.js';
 
 const TOOLS: Tool[] = [
   // Profile & Network
@@ -42,6 +43,12 @@ const TOOLS: Tool[] = [
   getFollowerStatisticsTool,
   getPageStatisticsTool,
   getContentStatisticsTool,
+  // Scheduling & Preview
+  previewPostTool,
+  schedulePostTool,
+  scheduleOrgPostTool,
+  listScheduledPostsTool,
+  cancelScheduledPostTool,
 ];
 
 type ToolHandler = (client: LinkedInApiClient, args: unknown) => Promise<unknown>;
@@ -69,6 +76,11 @@ const HANDLERS: Record<string, ToolHandler> = {
   get_follower_statistics: handleGetFollowerStatistics,
   get_page_statistics: handleGetPageStatistics,
   get_content_statistics: handleGetContentStatistics,
+  preview_post: handlePreviewPost,
+  schedule_post: handleSchedulePost,
+  schedule_org_post: handleScheduleOrgPost,
+  list_scheduled_posts: handleListScheduledPosts,
+  cancel_scheduled_post: handleCancelScheduledPost,
 };
 
 class LinkedInSocialMCPServer {

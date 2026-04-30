@@ -37,6 +37,7 @@ export interface UgcPost {
   visibility: {
     'com.linkedin.ugc.MemberNetworkVisibility': string;
   };
+  scheduledPublishTime?: number;
   created?: { time: number; actor: string };
   lastModified?: { time: number; actor: string };
   statistics?: { likeCount: number; commentCount: number; shareCount: number; impressionCount: number };
