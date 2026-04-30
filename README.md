@@ -172,8 +172,6 @@ Confirm everything is working and explain what I can do with this MCP server.
 
 **Scheduling (Member)**
 - `schedule_post` — schedule a personal post for a future date/time
-- `list_scheduled_posts` — view all your pending scheduled posts
-- `cancel_scheduled_post` — cancel a scheduled post
 
 **Organization Posts**
 - `create_org_text_post` — text post as your org page
@@ -186,6 +184,10 @@ Confirm everything is working and explain what I can do with this MCP server.
 
 **Scheduling (Organization)**
 - `schedule_org_post` — schedule an org page post for a future date/time
+
+**Scheduling (Member & Organization — shared)**
+- `list_scheduled_posts` — view all pending scheduled posts for a member OR org (pass either `urn:li:person:{id}` or `urn:li:organization:{id}`)
+- `cancel_scheduled_post` — cancel and delete any scheduled post, whether personal or org
 
 **Organization Management**
 - `get_organization` — org details, followers, industry
