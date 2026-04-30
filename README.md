@@ -5,7 +5,9 @@
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
 [![LinkedIn API](https://img.shields.io/badge/LinkedIn-Share%20on%20LinkedIn-0a66c2)](https://www.linkedin.com/developers/)
 
-A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives Claude full access to LinkedIn's **Share on LinkedIn** API — post, comment, react, schedule, preview, manage organization pages, and pull analytics, all from within Claude.
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives Claude full access to LinkedIn's **Share on LinkedIn** API — post, comment, react, **schedule**, preview, manage organization pages, and pull analytics, all from within Claude.
+
+> **Scheduling works 24/7** — even when your laptop is off — via a local background daemon + GitHub Actions cloud fallback.
 
 ---
 
@@ -63,8 +65,53 @@ Please set up the LinkedIn Social MCP server on my machine by following these st
    cd ~/linkedin-social-mcp && npm run auth
    Tell me to complete the LinkedIn login in the browser window that opens.
 
-9. Confirm setup is complete and suggest a test prompt like:
-   "Get my LinkedIn profile" or "Show me the last 5 posts from my LinkedIn company page"
+9. Set up the background scheduler so scheduled posts fire automatically:
+
+   a) Install the macOS LaunchAgent (runs every 60s when laptop is on):
+      mkdir -p ~/Library/LaunchAgents
+      NODE_PATH=$(which node)
+      REPO_PATH=~/linkedin-social-mcp
+      cat > ~/Library/LaunchAgents/com.linkedin.social.mcp.scheduler.plist << EOF
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0"><dict>
+        <key>Label</key><string>com.linkedin.social.mcp.scheduler</string>
+        <key>ProgramArguments</key>
+        <array>
+          <string>${NODE_PATH}</string>
+          <string>${REPO_PATH}/scheduler-daemon.mjs</string>
+        </array>
+        <key>StartInterval</key><integer>60</integer>
+        <key>RunAtLoad</key><true/>
+        <key>KeepAlive</key><false/>
+        <key>StandardOutPath</key><string>/Users/$USER/.linkedin-social-mcp/launchagent-stdout.log</string>
+        <key>StandardErrorPath</key><string>/Users/$USER/.linkedin-social-mcp/launchagent-stderr.log</string>
+        <key>EnvironmentVariables</key>
+        <dict>
+          <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+          <key>HOME</key><string>/Users/$USER</string>
+        </dict>
+        <key>WorkingDirectory</key><string>${REPO_PATH}</string>
+      </dict></plist>
+      EOF
+      launchctl load ~/Library/LaunchAgents/com.linkedin.social.mcp.scheduler.plist
+      echo "LaunchAgent loaded!"
+
+   b) Verify it is running:
+      launchctl list | grep linkedin
+
+   c) Tell me to set up the GitHub Actions cloud scheduler (for when laptop is off):
+      - Go to https://github.com/YOUR_USERNAME/linkedin-social-mcp/settings/secrets/actions
+        (replace YOUR_USERNAME with their GitHub username)
+      - Click "New repository secret"
+      - Name: LINKEDIN_ACCESS_TOKEN
+      - Value: run this in Terminal to get the token: cat ~/.linkedin-social-mcp/tokens.json | grep access_token
+        Copy only the token value (the long string inside the quotes)
+      - Click "Add secret"
+      The GitHub Actions workflow is already included in the repo and runs every 5 minutes automatically.
+
+10. Confirm setup is complete and suggest a test prompt like:
+    "Schedule a LinkedIn post for 5 minutes from now: Hello from my automated scheduler!"
 ```
 
 </details>
@@ -132,6 +179,25 @@ A browser window will open. Tell me to log in with my LinkedIn account and appro
 Step 8 — Restart and test:
 Tell me to restart Claude Desktop completely.
 Then suggest I test it by typing: "Get my LinkedIn profile"
+
+Step 9 — Set up the background scheduler (required for scheduled posts):
+Tell me about both options below and ask which I prefer.
+
+OPTION A — macOS LaunchAgent (laptop must be on):
+Ask me to run in Terminal:
+  launchctl load ~/Library/LaunchAgents/com.linkedin.social.mcp.scheduler.plist
+Tell me this runs the scheduler every 60 seconds in the background and will auto-start on login.
+Ask me to verify with: launchctl list | grep linkedin
+
+OPTION B — GitHub Actions (works 24/7, even when laptop is off):
+Tell me to:
+1. Fork the repo to my own GitHub account at https://github.com/amit123amit/linkedin-social-mcp
+2. Go to my fork → Settings → Secrets and variables → Actions → New repository secret
+3. Name: LINKEDIN_ACCESS_TOKEN
+4. Value: run this in Terminal and copy the token value: cat ~/.linkedin-social-mcp/tokens.json | grep access_token
+5. Click "Add secret"
+Tell me the GitHub Actions cron workflow is already in the repo — it runs every 5 minutes automatically.
+Recommend Option B for reliability, or both together for best coverage.
 
 Confirm everything is working and explain what I can do with this MCP server.
 ```
@@ -286,6 +352,153 @@ Restart Claude Desktop after saving.
 
 ---
 
+## Scheduler Setup (Required for Scheduled Posts)
+
+> **How scheduling works:** When you ask Claude to schedule a post, it is saved locally to `~/.linkedin-social-mcp/scheduled-posts.json`. A background daemon checks this file periodically and publishes any posts that are due — calling the LinkedIn API directly at the right time.
+
+LinkedIn's standard API does not support server-side scheduled posts for third-party apps, so this local scheduler approach gives you reliable, flexible scheduling for any date/time in the future.
+
+There are two complementary options. **We recommend setting up both** for maximum reliability.
+
+---
+
+### Option A — macOS LaunchAgent (when laptop is on)
+
+The LaunchAgent runs `scheduler-daemon.mjs` every **60 seconds** in the background. It starts automatically when you log in and requires no ongoing action.
+
+**Step 1 — Create the plist file:**
+
+Run the following in Terminal (replace `/opt/homebrew/bin/node` with your actual `node` path from `which node`):
+
+```bash
+mkdir -p ~/Library/LaunchAgents
+cat > ~/Library/LaunchAgents/com.linkedin.social.mcp.scheduler.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.linkedin.social.mcp.scheduler</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/node</string>
+        <string>/Users/YOUR_USERNAME/linkedin-social-mcp/scheduler-daemon.mjs</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>60</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USERNAME/.linkedin-social-mcp/launchagent-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USERNAME/.linkedin-social-mcp/launchagent-stderr.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/YOUR_USERNAME</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>/Users/YOUR_USERNAME/linkedin-social-mcp</string>
+</dict>
+</plist>
+EOF
+```
+
+Replace `YOUR_USERNAME` with your macOS username (run `whoami` in Terminal to check).
+
+**Step 2 — Load the LaunchAgent:**
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.linkedin.social.mcp.scheduler.plist
+```
+
+**Step 3 — Verify it is running:**
+
+```bash
+launchctl list | grep linkedin
+# Expected output (PID will differ):
+# 50735   0   com.linkedin.social.mcp.scheduler
+```
+
+**Common LaunchAgent commands:**
+
+```bash
+# Stop the scheduler
+launchctl unload ~/Library/LaunchAgents/com.linkedin.social.mcp.scheduler.plist
+
+# Restart it
+launchctl unload ~/Library/LaunchAgents/com.linkedin.social.mcp.scheduler.plist
+launchctl load ~/Library/LaunchAgents/com.linkedin.social.mcp.scheduler.plist
+
+# View scheduler logs
+tail -f ~/.linkedin-social-mcp/scheduler.log
+```
+
+---
+
+### Option B — GitHub Actions Cloud Scheduler (24/7, even when laptop is off)
+
+The GitHub Actions workflow (`.github/workflows/scheduler.yml`) is **already included in this repo**. It runs every **5 minutes, 24/7** on GitHub's servers — your laptop does not need to be on.
+
+**The only setup step is adding your LinkedIn token as a GitHub secret:**
+
+**Step 1 — Get your LinkedIn access token:**
+
+```bash
+cat ~/.linkedin-social-mcp/tokens.json
+```
+
+Copy the value of `access_token` — it's the long string (looks like `AQV...`).
+
+**Step 2 — Add it as a GitHub secret:**
+
+1. Go to your forked repo on GitHub
+2. Click **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Name: `LINKEDIN_ACCESS_TOKEN`
+5. Value: paste the access token you copied above
+6. Click **Add secret**
+
+**Step 3 — Verify the workflow is active:**
+
+1. Go to your repo → **Actions** tab
+2. You should see **"LinkedIn Post Scheduler"** listed
+3. Click on it → click **Run workflow** to trigger a manual test run
+4. Check the logs — you should see: `Scheduler daemon started` and `No posts due.` (or posts being published)
+
+**How GitHub Actions syncs scheduled posts:**
+
+When you schedule a post via Claude, it is saved to `~/.linkedin-social-mcp/scheduled-posts.json` on your local machine. For GitHub Actions to pick it up, you need to also commit the updated `scheduled-posts.json` to your repo:
+
+```bash
+cd ~/linkedin-social-mcp
+cp ~/.linkedin-social-mcp/scheduled-posts.json scheduled-posts.json
+git add scheduled-posts.json
+git commit -m "chore: add scheduled posts"
+git push
+```
+
+> **Tip:** Ask Claude to do this for you after scheduling a post: *"Push the updated scheduled-posts.json to GitHub so the cloud scheduler picks it up."*
+
+When the GitHub Actions workflow publishes a post, it automatically commits the updated `scheduled-posts.json` back to the repo with the new `PUBLISHED` status.
+
+---
+
+### Token Expiry
+
+LinkedIn access tokens expire after approximately **60 days**. When your token expires:
+
+1. Re-run `npm run auth` locally to get a new token
+2. Update the GitHub secret with the new token (repeat Step 2 above)
+
+> **Tip:** Set a calendar reminder every 50 days to refresh your token.
+
+---
+
 ## Usage Examples
 
 Once connected, try these prompts in Claude:
@@ -327,28 +540,38 @@ Once connected, try these prompts in Claude:
 - Token directory created with `700` permissions
 - Tokens auto-refresh before expiry when a refresh token is available
 - Never commit your `.env` file — it's in `.gitignore`
+- `LINKEDIN_ACCESS_TOKEN` GitHub secret is encrypted at rest and never exposed in logs
 
 ---
 
 ## Project Structure
 
 ```
-src/
-├── index.ts               # MCP server entry point (27 tools)
-├── auth-cli.ts            # CLI: npm run auth [login|status|logout]
-├── auth/
-│   ├── oauth.ts           # OAuth 2.0 flow with CSRF protection
-│   └── token-store.ts     # Token persistence & auto-refresh
-├── lib/
-│   ├── linkedin-api.ts    # LinkedIn REST API client (v2 + versioned)
-│   └── types.ts           # TypeScript interfaces
-└── tools/
-    ├── profile.ts         # get_my_profile, get_connection_count
-    ├── member-posts.ts    # Personal post/comment/react tools
-    ├── org-posts.ts       # Organization post tools
-    ├── org-management.ts  # Organization page management
-    ├── org-analytics.ts   # Follower, page & content analytics
-    └── scheduling.ts      # preview_post, schedule_post, schedule_org_post, list/cancel
+linkedin-social-mcp/
+├── scheduler-daemon.mjs          # Standalone scheduler daemon (zero dependencies)
+├── scheduled-posts.json          # Repo-level store synced by GitHub Actions
+├── .github/
+│   └── workflows/
+│       └── scheduler.yml         # GitHub Actions cron: runs every 5 min, 24/7
+├── src/
+│   ├── index.ts                  # MCP server entry point (27 tools)
+│   ├── auth-cli.ts               # CLI: npm run auth [login|status|logout]
+│   ├── auth/
+│   │   ├── oauth.ts              # OAuth 2.0 flow with CSRF protection
+│   │   ├── token-store.ts        # Token persistence & auto-refresh
+│   │   └── scheduled-post-store.ts  # Local scheduled post persistence
+│   ├── lib/
+│   │   ├── linkedin-api.ts       # LinkedIn REST API client (v2 + versioned)
+│   │   └── types.ts              # TypeScript interfaces
+│   └── tools/
+│       ├── profile.ts            # get_my_profile, get_connection_count
+│       ├── member-posts.ts       # Personal post/comment/react tools
+│       ├── org-posts.ts          # Organization post tools
+│       ├── org-management.ts     # Organization page management
+│       ├── org-analytics.ts      # Follower, page & content analytics
+│       └── scheduling.ts         # preview_post, schedule_post, schedule_org_post, list/cancel
+└── ~/Library/LaunchAgents/
+    └── com.linkedin.social.mcp.scheduler.plist  # macOS LaunchAgent (created during setup)
 ```
 
 ---
