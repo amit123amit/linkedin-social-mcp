@@ -249,6 +249,9 @@ export class LinkedInApiClient {
 
   // ─── Scheduling (w_member_social / w_organization_social) ────────────────
 
+  // createScheduledPost no longer creates a LinkedIn draft.
+  // It returns a local-only placeholder ID; the background scheduler in
+  // index.ts calls createPost() at the right time to publish directly.
   async createScheduledPost(params: {
     authorUrn: string;
     text: string;
@@ -259,50 +262,9 @@ export class LinkedInApiClient {
     articleDescription?: string;
     imageAssetUrn?: string;
   }): Promise<{ id: string }> {
-    const token = await this.tokenStore.getAccessToken();
-    if (!token) throw new Error('Not authenticated. Run: npm run auth');
-
-    const body: Record<string, unknown> = {
-      author: params.authorUrn,
-      commentary: params.text,
-      visibility: params.visibility ?? 'PUBLIC',
-      distribution: {
-        feedDistribution: 'MAIN_FEED',
-        targetEntities: [],
-        thirdPartyDistributionChannels: [],
-      },
-      lifecycleState: 'DRAFT',
-      isReshareDisabledByAuthor: false,
-    };
-
-    if (params.articleUrl) {
-      body['content'] = {
-        article: {
-          source: params.articleUrl,
-          ...(params.articleTitle && { title: params.articleTitle }),
-          ...(params.articleDescription && { description: params.articleDescription }),
-        },
-      };
-    }
-
-    const res = await fetch('https://api.linkedin.com/rest/posts', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'LinkedIn-Version': '202601',
-        'X-Restli-Protocol-Version': '2.0.0',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`LinkedIn API ${res.status} on POST /rest/posts: ${text}`);
-    }
-
-    const location = res.headers.get('x-restli-id') || res.headers.get('location') || '';
-    return { id: location };
+    // Generate a stable local ID so the store has something to reference
+    const localId = `local-scheduled-${params.authorUrn.replace(/[^a-z0-9]/gi, '')}-${params.scheduledPublishTime}`;
+    return { id: localId };
   }
 
   async getScheduledPosts(authorUrn: string, count = 20, start = 0): Promise<ApiListResponse<UgcPost>> {

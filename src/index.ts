@@ -150,9 +150,41 @@ class LinkedInSocialMCPServer {
     });
   }
 
+  // ─── Background scheduler ─────────────────────────────────────────────────
+  // Checks every 30 seconds for due scheduled posts and publishes them.
+
+  private startScheduler(): void {
+    const CHECK_INTERVAL_MS = 30_000; // 30 seconds
+
+    const tick = async () => {
+      const due = this.scheduledPostStore.getDuePosts();
+      for (const post of due) {
+        try {
+          // Skip local-placeholder URNs that were already attempted
+          const result = await this.apiClient.createPost({
+            authorUrn: post.authorUrn,
+            text: post.text,
+            visibility: post.visibility as 'PUBLIC' | 'CONNECTIONS' | 'LOGGED_IN' | undefined,
+            articleUrl: post.articleUrl,
+          });
+          this.scheduledPostStore.markPublished(post.postUrn);
+          this.scheduledPostStore.updatePublishedUrn(post.postUrn, result.id);
+          console.error(`[scheduler] ✅ Published: ${result.id} (was ${post.postUrn})`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[scheduler] ❌ Failed to publish ${post.postUrn}: ${msg}`);
+        }
+      }
+    };
+
+    setInterval(tick, CHECK_INTERVAL_MS);
+    console.error('[scheduler] Background post scheduler started (30s interval)');
+  }
+
   async run(): Promise<void> {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
+    this.startScheduler();
     console.error('LinkedIn Social MCP server running on stdio');
   }
 }

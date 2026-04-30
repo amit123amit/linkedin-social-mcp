@@ -77,6 +77,15 @@ export class ScheduledPostStore {
     return true;
   }
 
+  // Update the postUrn with the real LinkedIn URN after publish
+  updatePublishedUrn(localPostUrn: string, realUrn: string): void {
+    const idx = this.posts.findIndex(p => p.postUrn === localPostUrn);
+    if (idx !== -1 && realUrn) {
+      this.posts[idx].postUrn = realUrn;
+      this.saveToDisk();
+    }
+  }
+
   getAll(authorUrn?: string): ScheduledPostRecord[] {
     if (authorUrn) return this.posts.filter(p => p.authorUrn === authorUrn);
     return this.posts;
@@ -90,16 +99,17 @@ export class ScheduledPostStore {
     return this.posts.find(p => p.postUrn === postUrn);
   }
 
-  // Auto-expire posts whose scheduledFor time has passed
-  syncStatuses(): void {
+  // Returns posts that are SCHEDULED and whose scheduledFor time has passed — ready to publish
+  getDuePosts(): ScheduledPostRecord[] {
     const now = new Date();
-    let changed = false;
-    for (const post of this.posts) {
-      if (post.status === 'SCHEDULED' && new Date(post.scheduledFor) < now) {
-        post.status = 'PUBLISHED';
-        changed = true;
-      }
-    }
-    if (changed) this.saveToDisk();
+    return this.posts.filter(
+      p => p.status === 'SCHEDULED' && new Date(p.scheduledFor) <= now,
+    );
+  }
+
+  // No-op kept for call-site compatibility — status is only updated via markPublished/cancelPost
+  syncStatuses(): void {
+    // Intentionally empty: do NOT auto-expire to PUBLISHED based on time alone.
+    // Actual publishing is handled by the background scheduler in index.ts.
   }
 }
