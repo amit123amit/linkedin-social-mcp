@@ -103,11 +103,15 @@ Please set up the LinkedIn Social MCP server on my machine by following these st
    c) Tell me to set up the GitHub Actions cloud scheduler (for when laptop is off):
       - Go to https://github.com/YOUR_USERNAME/linkedin-social-mcp/settings/secrets/actions
         (replace YOUR_USERNAME with their GitHub username)
-      - Click "New repository secret"
-      - Name: LINKEDIN_ACCESS_TOKEN
-      - Value: run this in Terminal to get the token: cat ~/.linkedin-social-mcp/tokens.json | grep access_token
-        Copy only the token value (the long string inside the quotes)
-      - Click "Add secret"
+      - Add these three secrets (click "New repository secret" for each):
+        1. Name: LINKEDIN_CLIENT_ID
+           Value: your LinkedIn app Client ID (from https://www.linkedin.com/developers/apps)
+        2. Name: LINKEDIN_CLIENT_SECRET
+           Value: your LinkedIn app Client Secret (from the same app page)
+        3. Name: LINKEDIN_REFRESH_TOKEN
+           Value: run this in Terminal: cat ~/.linkedin-social-mcp/tokens.json | grep refresh_token
+                  Copy only the token value (the long string inside the quotes)
+      - These secrets are valid for ~1 year (refresh token TTL). The workflow auto-refreshes the access token on every run.
       The GitHub Actions workflow is already included in the repo and runs every 5 minutes automatically.
 
 10. Confirm setup is complete and suggest a test prompt like:
@@ -192,10 +196,13 @@ Ask me to verify with: launchctl list | grep linkedin
 OPTION B — GitHub Actions (works 24/7, even when laptop is off):
 Tell me to:
 1. Fork the repo to my own GitHub account at https://github.com/amit123amit/linkedin-social-mcp
-2. Go to my fork → Settings → Secrets and variables → Actions → New repository secret
-3. Name: LINKEDIN_ACCESS_TOKEN
-4. Value: run this in Terminal and copy the token value: cat ~/.linkedin-social-mcp/tokens.json | grep access_token
-5. Click "Add secret"
+2. Go to my fork → Settings → Secrets and variables → Actions
+3. Add these three secrets (New repository secret for each):
+   - LINKEDIN_CLIENT_ID: their LinkedIn app Client ID
+   - LINKEDIN_CLIENT_SECRET: their LinkedIn app Client Secret
+   - LINKEDIN_REFRESH_TOKEN: run in Terminal: cat ~/.linkedin-social-mcp/tokens.json | grep refresh_token
+     (copy the long token value)
+4. These secrets are valid for ~1 year. The workflow auto-refreshes the access token on every run.
 Tell me the GitHub Actions cron workflow is already in the repo — it runs every 5 minutes automatically.
 Recommend Option B for reliability, or both together for best coverage.
 
@@ -454,21 +461,26 @@ cat ~/.linkedin-social-mcp/tokens.json
 
 Copy the value of `access_token` — it's the long string (looks like `AQV...`).
 
-**Step 2 — Add it as a GitHub secret:**
+**Step 2 — Add three secrets to GitHub (one-time setup, valid for ~1 year):**
 
 1. Go to your forked repo on GitHub
 2. Click **Settings** → **Secrets and variables** → **Actions**
-3. Click **New repository secret**
-4. Name: `LINKEDIN_ACCESS_TOKEN`
-5. Value: paste the access token you copied above
-6. Click **Add secret**
+3. Add these three secrets one by one (click **New repository secret** for each):
+
+| Secret Name | How to get the value |
+|---|---|
+| `LINKEDIN_CLIENT_ID` | From your LinkedIn Developer App → Auth tab |
+| `LINKEDIN_CLIENT_SECRET` | From your LinkedIn Developer App → Auth tab |
+| `LINKEDIN_REFRESH_TOKEN` | Run: `cat ~/.linkedin-social-mcp/tokens.json \| grep refresh_token` — copy the value |
+
+> **Why three secrets instead of one?** With the refresh token approach, GitHub Actions automatically exchanges your refresh token for a fresh access token on every run. You only need to update these secrets **once a year** when the refresh token expires (~365 days), instead of every 60 days with the old static token approach.
 
 **Step 3 — Verify the workflow is active:**
 
 1. Go to your repo → **Actions** tab
 2. You should see **"LinkedIn Post Scheduler"** listed
 3. Click on it → click **Run workflow** to trigger a manual test run
-4. Check the logs — you should see: `Scheduler daemon started` and `No posts due.` (or posts being published)
+4. Check the logs — you should see: `Scheduler daemon started` → `✅ Access token refreshed successfully` → `No posts due.`
 
 **How GitHub Actions syncs scheduled posts:**
 
@@ -488,14 +500,46 @@ When the GitHub Actions workflow publishes a post, it automatically commits the 
 
 ---
 
-### Token Expiry
+### Token Expiry & Automatic Refresh
 
-LinkedIn access tokens expire after approximately **60 days**. When your token expires:
+LinkedIn tokens have two layers:
 
-1. Re-run `npm run auth` locally to get a new token
-2. Update the GitHub secret with the new token (repeat Step 2 above)
+| Token | Expires | Handled by |
+|---|---|---|
+| **Access token** | ~60 days | ✅ Auto-refreshed locally by `token-store.ts` — no action needed |
+| **Refresh token** | ~365 days | ⚠️ Requires manual re-auth once a year |
 
-> **Tip:** Set a calendar reminder every 50 days to refresh your token.
+**For local use (MCP server + LaunchAgent):** Fully automatic. The MCP server silently refreshes the access token in the background using the refresh token. You will not need to do anything for the first ~365 days.
+
+**For GitHub Actions:** Automatic once set up with the three secrets above. The scheduler exchanges the refresh token for a fresh access token on every run.
+
+**When the refresh token expires (once a year):**
+
+The scheduler log will show:
+```
+⚠️  WARNING: LinkedIn access token expires in X day(s)!
+```
+...with exact recovery steps printed automatically. You will also see this in GitHub Actions logs.
+
+**Recovery steps (takes ~2 minutes):**
+
+```bash
+# Step 1 — Re-authenticate to get a new refresh token
+cd ~/linkedin-social-mcp && npm run auth
+# (Log in via browser and approve permissions)
+
+# Step 2 — Update the GitHub secret
+cat ~/.linkedin-social-mcp/tokens.json | grep refresh_token
+# Copy the value, then go to:
+# https://github.com/YOUR_REPO/settings/secrets/actions
+# Update LINKEDIN_REFRESH_TOKEN with the new value
+
+# Step 3 — Verify
+launchctl list | grep linkedin            # local scheduler still running
+tail -20 ~/.linkedin-social-mcp/scheduler.log  # check for errors
+```
+
+> **Tip:** Set a calendar reminder every **11 months** to refresh your tokens before they expire.
 
 ---
 

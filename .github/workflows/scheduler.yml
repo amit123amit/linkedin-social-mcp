@@ -25,10 +25,28 @@ jobs:
 
       - name: Run scheduler daemon
         env:
-          # Store your LinkedIn access token in GitHub repo secrets:
-          # Settings → Secrets and variables → Actions → New secret
-          # Name: LINKEDIN_ACCESS_TOKEN
+          # ── Recommended: refresh_token approach ───────────────────────────
+          # The daemon exchanges your refresh token for a fresh access token
+          # on every run. You only need to update these secrets once a year
+          # (when the refresh token expires after ~365 days).
+          #
+          # Set these three secrets in:
+          #   GitHub repo → Settings → Secrets and variables → Actions
+          #
+          #   LINKEDIN_CLIENT_ID      → your LinkedIn app Client ID
+          #   LINKEDIN_CLIENT_SECRET  → your LinkedIn app Client Secret
+          #   LINKEDIN_REFRESH_TOKEN  → from: cat ~/.linkedin-social-mcp/tokens.json | grep refresh_token
+          #
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
+          #
+          # ── Legacy fallback: static access token ──────────────────────────
+          # If the three secrets above are not set, the daemon falls back to
+          # LINKEDIN_ACCESS_TOKEN. This requires manual update every ~60 days.
+          #
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+
         run: |
           # Copy scheduled-posts.json from repo to expected location
           mkdir -p ~/.linkedin-social-mcp
