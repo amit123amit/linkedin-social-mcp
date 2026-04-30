@@ -1,5 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { LinkedInApiClient } from '../lib/linkedin-api.js';
+import { ScheduledPostStore } from '../auth/scheduled-post-store.js';
 
 // ─── Tool Definitions ──────────────────────────────────────────────────────
 
@@ -185,7 +186,7 @@ export async function handlePreviewPost(_client: LinkedInApiClient, args: unknow
   };
 }
 
-export async function handleSchedulePost(client: LinkedInApiClient, args: unknown) {
+export async function handleSchedulePost(client: LinkedInApiClient, args: unknown, store?: ScheduledPostStore) {
   const { author_urn, text, scheduled_time, article_url, article_title, article_description, visibility } = args as {
     author_urn: string;
     text: string;
@@ -217,18 +218,36 @@ export async function handleSchedulePost(client: LinkedInApiClient, args: unknow
     visibility,
   });
 
+  const scheduledFor = new Date(scheduledMs).toISOString();
+  const scheduledForLocal = new Date(scheduledMs).toLocaleString();
+
+  // Save to local store
+  store?.addPost({
+    postUrn: result.id,
+    authorUrn: author_urn,
+    text,
+    visibility: visibility ?? 'PUBLIC',
+    scheduledFor,
+    scheduledForLocal,
+    createdAt: new Date().toISOString(),
+    status: 'SCHEDULED',
+    articleUrl: article_url,
+    type: 'personal',
+  });
+
   return {
     success: true,
     postUrn: result.id,
-    scheduledFor: new Date(scheduledMs).toISOString(),
-    scheduledForLocal: new Date(scheduledMs).toLocaleString(),
+    scheduledFor,
+    scheduledForLocal,
     authorUrn: author_urn,
     status: 'SCHEDULED',
+    localTracking: '✅ Saved to ~/.linkedin-social-mcp/scheduled-posts.json',
   };
 }
 
-export async function handleScheduleOrgPost(client: LinkedInApiClient, args: unknown) {
-  const { org_urn, text, scheduled_time, article_url, article_title, article_description, visibility } = args as {
+export async function handleScheduleOrgPost(client: LinkedInApiClient, args: unknown, store?: ScheduledPostStore) {
+  const { org_urn, text, scheduled_time, article_url, article_title, article_description, visibility, org_name } = args as {
     org_urn: string;
     text: string;
     scheduled_time: string;
@@ -236,6 +255,7 @@ export async function handleScheduleOrgPost(client: LinkedInApiClient, args: unk
     article_title?: string;
     article_description?: string;
     visibility?: 'PUBLIC' | 'LOGGED_IN';
+    org_name?: string;
   };
 
   const scheduledMs = new Date(scheduled_time).getTime();
@@ -258,28 +278,89 @@ export async function handleScheduleOrgPost(client: LinkedInApiClient, args: unk
     visibility,
   });
 
+  const scheduledFor = new Date(scheduledMs).toISOString();
+  const scheduledForLocal = new Date(scheduledMs).toLocaleString();
+
+  // Save to local store
+  store?.addPost({
+    postUrn: result.id,
+    authorUrn: org_urn,
+    text,
+    visibility: visibility ?? 'PUBLIC',
+    scheduledFor,
+    scheduledForLocal,
+    createdAt: new Date().toISOString(),
+    status: 'SCHEDULED',
+    articleUrl: article_url,
+    type: 'org',
+    orgName: org_name,
+  });
+
   return {
     success: true,
     postUrn: result.id,
-    scheduledFor: new Date(scheduledMs).toISOString(),
+    scheduledFor,
+    scheduledForLocal,
     orgUrn: org_urn,
     status: 'SCHEDULED',
+    localTracking: '✅ Saved to ~/.linkedin-social-mcp/scheduled-posts.json',
   };
 }
 
-export async function handleListScheduledPosts(client: LinkedInApiClient, args: unknown) {
+export async function handleListScheduledPosts(client: LinkedInApiClient, args: unknown, store?: ScheduledPostStore) {
   const { author_urn, count = 20, start = 0 } = args as {
     author_urn: string;
     count?: number;
     start?: number;
   };
 
-  const result = await client.getScheduledPosts(author_urn, count, start);
+  const isOrg = author_urn.includes('organization');
 
-  return {
-    authorUrn: author_urn,
-    total: result.paging?.total ?? result.elements.length,
-    scheduledPosts: result.elements.map(p => {
+  // For personal profiles: always use local store (no r_member_social scope available)
+  if (!isOrg) {
+    if (!store) throw new Error('Local store not available.');
+
+    store.syncStatuses(); // auto-expire passed scheduled posts
+    const posts = store.getAll(author_urn).slice(start, start + count);
+    const scheduled = posts.filter(p => p.status === 'SCHEDULED');
+    const published = posts.filter(p => p.status === 'PUBLISHED');
+    const cancelled = posts.filter(p => p.status === 'CANCELLED');
+
+    return {
+      source: 'local-store',
+      authorUrn: author_urn,
+      note: 'LinkedIn API does not allow reading personal posts (requires restricted r_member_social scope). Showing locally tracked posts.',
+      summary: {
+        total: posts.length,
+        scheduled: scheduled.length,
+        published: published.length,
+        cancelled: cancelled.length,
+      },
+      scheduledPosts: scheduled.map(p => ({
+        postUrn: p.postUrn,
+        text: p.text.length > 120 ? p.text.slice(0, 120) + '…' : p.text,
+        visibility: p.visibility,
+        scheduledFor: p.scheduledFor,
+        scheduledForLocal: p.scheduledForLocal,
+        createdAt: p.createdAt,
+        status: p.status,
+        type: p.type,
+      })),
+      allPosts: posts.map(p => ({
+        postUrn: p.postUrn,
+        text: p.text.length > 80 ? p.text.slice(0, 80) + '…' : p.text,
+        status: p.status,
+        scheduledFor: p.scheduledFor,
+        scheduledForLocal: p.scheduledForLocal,
+        type: p.type,
+      })),
+    };
+  }
+
+  // For org pages: try the API, fall back to local store
+  try {
+    const result = await client.getScheduledPosts(author_urn, count, start);
+    const apiPosts = result.elements.map(p => {
       const content = p.specificContent?.['com.linkedin.ugc.ShareContent'];
       return {
         postUrn: p.id,
@@ -290,12 +371,52 @@ export async function handleListScheduledPosts(client: LinkedInApiClient, args: 
         lifecycleState: p.lifecycleState,
         mediaCategory: content?.shareMediaCategory,
       };
-    }),
-  };
+    });
+
+    // Merge with local store records
+    const localPosts = store?.getAll(author_urn) ?? [];
+    return {
+      source: 'api+local-store',
+      authorUrn: author_urn,
+      total: apiPosts.length,
+      apiPosts,
+      localTrackedPosts: localPosts.map(p => ({
+        postUrn: p.postUrn,
+        text: p.text.length > 80 ? p.text.slice(0, 80) + '…' : p.text,
+        status: p.status,
+        scheduledFor: p.scheduledFor,
+        scheduledForLocal: p.scheduledForLocal,
+      })),
+    };
+  } catch {
+    // API failed — fall back to local store only
+    if (!store) throw new Error('Both API and local store unavailable.');
+    store.syncStatuses();
+    const posts = store.getAll(author_urn).slice(start, start + count);
+    return {
+      source: 'local-store-fallback',
+      authorUrn: author_urn,
+      total: posts.length,
+      posts: posts.map(p => ({
+        postUrn: p.postUrn,
+        text: p.text.length > 80 ? p.text.slice(0, 80) + '…' : p.text,
+        status: p.status,
+        scheduledFor: p.scheduledForLocal,
+        type: p.type,
+        orgName: p.orgName,
+      })),
+    };
+  }
 }
 
-export async function handleCancelScheduledPost(client: LinkedInApiClient, args: unknown) {
+export async function handleCancelScheduledPost(client: LinkedInApiClient, args: unknown, store?: ScheduledPostStore) {
   const { post_urn } = args as { post_urn: string };
   await client.deletePost(post_urn);
-  return { success: true, cancelled: post_urn, message: 'Scheduled post cancelled and deleted.' };
+  const removedFromStore = store?.cancelPost(post_urn) ?? false;
+  return {
+    success: true,
+    cancelled: post_urn,
+    message: 'Scheduled post cancelled and deleted.',
+    localStoreUpdated: removedFromStore,
+  };
 }

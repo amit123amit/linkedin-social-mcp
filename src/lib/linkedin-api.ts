@@ -259,47 +259,85 @@ export class LinkedInApiClient {
     articleDescription?: string;
     imageAssetUrn?: string;
   }): Promise<{ id: string }> {
-    const mediaCategory = params.imageAssetUrn
-      ? 'IMAGE'
-      : params.articleUrl
-      ? 'ARTICLE'
-      : 'NONE';
+    const token = await this.tokenStore.getAccessToken();
+    if (!token) throw new Error('Not authenticated. Run: npm run auth');
 
-    const media: object[] = [];
-    if (params.imageAssetUrn) {
-      media.push({ status: 'READY', media: params.imageAssetUrn });
-    } else if (params.articleUrl) {
-      media.push({
-        status: 'READY',
-        originalUrl: params.articleUrl,
-        ...(params.articleTitle && { title: { text: params.articleTitle } }),
-        ...(params.articleDescription && { description: { text: params.articleDescription } }),
-      });
+    const body: Record<string, unknown> = {
+      author: params.authorUrn,
+      commentary: params.text,
+      visibility: params.visibility ?? 'PUBLIC',
+      distribution: {
+        feedDistribution: 'MAIN_FEED',
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      lifecycleState: 'DRAFT',
+      isReshareDisabledByAuthor: false,
+    };
+
+    if (params.articleUrl) {
+      body['content'] = {
+        article: {
+          source: params.articleUrl,
+          ...(params.articleTitle && { title: params.articleTitle }),
+          ...(params.articleDescription && { description: params.articleDescription }),
+        },
+      };
     }
 
-    return this.request<{ id: string }>('POST', '/ugcPosts', {
-      author: params.authorUrn,
-      lifecycleState: 'DRAFT',
-      scheduledPublishTime: params.scheduledPublishTime,
-      specificContent: {
-        'com.linkedin.ugc.ShareContent': {
-          shareCommentary: { text: params.text },
-          shareMediaCategory: mediaCategory,
-          ...(media.length > 0 && { media }),
-        },
+    const res = await fetch('https://api.linkedin.com/rest/posts', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'LinkedIn-Version': '202601',
+        'X-Restli-Protocol-Version': '2.0.0',
       },
-      visibility: {
-        'com.linkedin.ugc.MemberNetworkVisibility': params.visibility ?? 'PUBLIC',
-      },
+      body: JSON.stringify(body),
     });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`LinkedIn API ${res.status} on POST /rest/posts: ${text}`);
+    }
+
+    const location = res.headers.get('x-restli-id') || res.headers.get('location') || '';
+    return { id: location };
   }
 
   async getScheduledPosts(authorUrn: string, count = 20, start = 0): Promise<ApiListResponse<UgcPost>> {
     const encoded = encodeURIComponent(authorUrn);
-    return this.request<ApiListResponse<UgcPost>>(
-      'GET',
-      `/ugcPosts?q=authors&authors=List(${encoded})&lifecycleState=DRAFT&count=${count}&start=${start}`,
-    );
+    const isOrg = authorUrn.includes('organization');
+
+    if (isOrg) {
+      // Org posts: use ugcPosts with q=authors (works with r_organization_social)
+      return this.request<ApiListResponse<UgcPost>>(
+        'GET',
+        `/ugcPosts?q=authors&authors=List(${encoded})&count=${count}&start=${start}`,
+      );
+    } else {
+      // Personal posts: use /rest/posts with q=author (requires r_member_social)
+      const token = await this.tokenStore.getAccessToken();
+      if (!token) throw new Error('Not authenticated. Run: npm run auth');
+
+      const url = `https://api.linkedin.com/rest/posts?q=author&author=${encoded}&isDsc=true&count=${count}&start=${start}`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'LinkedIn-Version': '202601',
+          'X-Restli-Protocol-Version': '2.0.0',
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`LinkedIn API ${res.status} on GET /rest/posts: ${text}`);
+      }
+
+      return res.json() as Promise<ApiListResponse<UgcPost>>;
+    }
   }
 
   // ─── Image Upload (w_member_social / w_organization_social) ───────────────

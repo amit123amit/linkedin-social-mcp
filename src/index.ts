@@ -7,6 +7,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@model
 
 import { LinkedInApiClient } from './lib/linkedin-api.js';
 import { TokenStore } from './auth/token-store.js';
+import { ScheduledPostStore } from './auth/scheduled-post-store.js';
 
 import { getMyProfileTool, getConnectionCountTool, handleGetMyProfile, handleGetConnectionCount } from './tools/profile.js';
 import { createTextPostTool, createLinkPostTool, deletePostTool, createCommentTool, deleteCommentTool, reactToPostTool, removeReactionTool, handleCreateTextPost, handleCreateLinkPost, handleDeletePost, handleCreateComment, handleDeleteComment, handleReactToPost, handleRemoveReaction } from './tools/member-posts.js';
@@ -87,6 +88,7 @@ class LinkedInSocialMCPServer {
   private server: Server;
   private apiClient: LinkedInApiClient;
   private tokenStore: TokenStore;
+  private scheduledPostStore: ScheduledPostStore;
 
   constructor() {
     this.server = new Server(
@@ -95,6 +97,7 @@ class LinkedInSocialMCPServer {
     );
     this.tokenStore = new TokenStore();
     this.apiClient = new LinkedInApiClient(this.tokenStore);
+    this.scheduledPostStore = new ScheduledPostStore();
     this.setupHandlers();
   }
 
@@ -127,7 +130,15 @@ class LinkedInSocialMCPServer {
       }
 
       try {
-        const result = await handler(this.apiClient, args ?? {});
+        // Inject scheduledPostStore into scheduling-related handlers
+        let result: unknown;
+        if (['schedule_post', 'schedule_org_post', 'list_scheduled_posts', 'cancel_scheduled_post'].includes(name)) {
+          result = await (handler as (client: LinkedInApiClient, args: unknown, store: ScheduledPostStore) => Promise<unknown>)(
+            this.apiClient, args ?? {}, this.scheduledPostStore
+          );
+        } else {
+          result = await handler(this.apiClient, args ?? {});
+        }
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
