@@ -68,5 +68,9 @@ jobs:
           git config user.email "scheduler@linkedin-mcp.local"
           git add scheduled-posts.json
           # Only commit if there are changes (i.e. posts were published)
-          git diff --staged --quiet || git commit -m "chore: scheduler updated post statuses [skip ci]"
-          git push
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: scheduler updated post statuses [skip ci]"
+            # Pull rebase in case another commit landed since checkout
+            git pull --rebase origin main
+            git push
+          fi
