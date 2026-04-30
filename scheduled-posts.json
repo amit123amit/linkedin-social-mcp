@@ -1,0 +1,35 @@
+[
+  {
+    "postUrn": "urn:li:share:7455533535630712832",
+    "authorUrn": "urn:li:organization:65613084",
+    "text": "🥗 Eating healthy doesn't have to be complicated.\n\nAt HealthyBite Foods, we believe that every meal is an opportunity — to fuel your body, boost your energy, and feel your best.\n\nHere's our simple philosophy:\n✅ Real ingredients. No shortcuts.\n✅ Balanced nutrition in every bite.\n✅ Food that tastes as good as it makes you feel.\n\nYour health journey starts with what's on your plate. Let's make it delicious. 🌿\n\n#HealthyEating #NutritionFirst #CleanFood #HealthyBiteFoods #WellnessJourney",
+    "visibility": "LOGGED_IN",
+    "scheduledFor": "2026-04-30T08:01:22.000Z",
+    "scheduledForLocal": "4/30/2026, 1:31:22 PM",
+    "createdAt": "2026-04-30T07:49:30.446Z",
+    "status": "PUBLISHED",
+    "type": "org"
+  },
+  {
+    "postUrn": "urn:li:share:7455533539690962944",
+    "authorUrn": "urn:li:person:sM94CZy66R",
+    "text": "🧪 Test post with local tracking — scheduling + local store works! 🎉 [v2 - private]\n\n#Test #Automation #LinkedInAPI",
+    "visibility": "LOGGED_IN",
+    "scheduledFor": "2026-04-30T07:58:34.000Z",
+    "scheduledForLocal": "4/30/2026, 1:28:34 PM",
+    "createdAt": "2026-04-30T07:47:40.406Z",
+    "status": "PUBLISHED",
+    "type": "personal"
+  },
+  {
+    "postUrn": "urn:li:share:7455522595052994560",
+    "authorUrn": "urn:li:person:sM94CZy66R",
+    "text": "🧪 Test post with local tracking — if you see this, scheduling + local store works! 🎉\n\n#Test #Automation #LinkedInAPI",
+    "visibility": "PUBLIC",
+    "scheduledFor": "2026-04-30T07:55:57.000Z",
+    "scheduledForLocal": "4/30/2026, 1:25:57 PM",
+    "createdAt": "2026-04-30T07:45:03.883Z",
+    "status": "CANCELLED",
+    "type": "personal"
+  }
+]
