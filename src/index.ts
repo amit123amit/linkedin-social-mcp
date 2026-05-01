@@ -12,7 +12,7 @@ import { ScheduledPostStore } from './auth/scheduled-post-store.js';
 import { getMyProfileTool, getConnectionCountTool, handleGetMyProfile, handleGetConnectionCount } from './tools/profile.js';
 import { createTextPostTool, createLinkPostTool, deletePostTool, createCommentTool, deleteCommentTool, reactToPostTool, removeReactionTool, handleCreateTextPost, handleCreateLinkPost, handleDeletePost, handleCreateComment, handleDeleteComment, handleReactToPost, handleRemoveReaction } from './tools/member-posts.js';
 import { createOrgTextPostTool, createOrgLinkPostTool, deleteOrgPostTool, getOrgPostsTool, createOrgCommentTool, getPostCommentsTool, getPostReactionsTool, handleCreateOrgTextPost, handleCreateOrgLinkPost, handleDeleteOrgPost, handleGetOrgPosts, handleCreateOrgComment, handleGetPostComments, handleGetPostReactions } from './tools/org-posts.js';
-import { getOrganizationTool, updateOrganizationTool, getOrganizationAdminsTool, handleGetOrganization, handleUpdateOrganization, handleGetOrganizationAdmins } from './tools/org-management.js';
+import { listMyPagesTool, getOrganizationTool, updateOrganizationTool, getOrganizationAdminsTool, handleListMyPages, handleGetOrganization, handleUpdateOrganization, handleGetOrganizationAdmins } from './tools/org-management.js';
 import { getFollowerStatisticsTool, getPageStatisticsTool, getContentStatisticsTool, handleGetFollowerStatistics, handleGetPageStatistics, handleGetContentStatistics } from './tools/org-analytics.js';
 import { previewPostTool, schedulePostTool, scheduleOrgPostTool, listScheduledPostsTool, cancelScheduledPostTool, handlePreviewPost, handleSchedulePost, handleScheduleOrgPost, handleListScheduledPosts, handleCancelScheduledPost } from './tools/scheduling.js';
 
@@ -37,6 +37,7 @@ const TOOLS: Tool[] = [
   getPostCommentsTool,
   getPostReactionsTool,
   // Org Management (rw_organization_admin)
+  listMyPagesTool,
   getOrganizationTool,
   updateOrganizationTool,
   getOrganizationAdminsTool,
@@ -71,6 +72,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   create_org_comment: handleCreateOrgComment,
   get_post_comments: handleGetPostComments,
   get_post_reactions: handleGetPostReactions,
+  list_my_pages: handleListMyPages,
   get_organization: handleGetOrganization,
   update_organization: handleUpdateOrganization,
   get_organization_admins: handleGetOrganizationAdmins,

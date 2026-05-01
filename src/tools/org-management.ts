@@ -32,6 +32,19 @@ export const updateOrganizationTool: Tool = {
   },
 };
 
+export const listMyPagesTool: Tool = {
+  name: 'list_my_pages',
+  description:
+    'List all LinkedIn organization pages where the authenticated user is an ADMINISTRATOR. ' +
+    'Returns each page\'s name, numeric ID, URN, vanity URL, and role. ' +
+    'Use this to discover which pages you can post to, schedule on, or pull analytics for. ' +
+    'Requires rw_organization_admin scope.',
+  inputSchema: {
+    type: 'object',
+    properties: {},
+  },
+};
+
 export const getOrganizationAdminsTool: Tool = {
   name: 'get_organization_admins',
   description: 'List all admins and their roles for a LinkedIn organization page. Requires rw_organization_admin scope.',
@@ -48,6 +61,51 @@ export const getOrganizationAdminsTool: Tool = {
 };
 
 // ─── Handlers ─────────────────────────────────────────────────────────────
+
+export async function handleListMyPages(client: LinkedInApiClient, _args: unknown) {
+  const aclResult = await client.getMyAdminPages();
+
+  const pages = await Promise.all(
+    aclResult.elements.map(async (acl) => {
+      const orgUrn = acl.organization;
+      const orgId  = orgUrn.split(':').pop()!;
+      try {
+        const org = await client.getOrganization(orgId);
+        const locale = org.name.preferredLocale;
+        const key    = `${locale.language}_${locale.country}`;
+        const name   =
+          org.localizedName ??
+          org.name.localized[key] ??
+          (Object.values(org.name.localized)[0] as string | undefined) ??
+          '';
+        return {
+          orgId:     org.id,
+          orgUrn,
+          name,
+          vanityName: org.vanityName,
+          pageUrl:    org.vanityName
+            ? `https://www.linkedin.com/company/${org.vanityName}`
+            : undefined,
+          role:  acl.role,
+          state: acl.state,
+        };
+      } catch {
+        return {
+          orgId,
+          orgUrn,
+          role:  acl.role,
+          state: acl.state,
+          error: 'Could not fetch page details',
+        };
+      }
+    }),
+  );
+
+  return {
+    total: aclResult.paging?.total ?? pages.length,
+    pages,
+  };
+}
 
 export async function handleGetOrganization(client: LinkedInApiClient, args: unknown) {
   const { org_id } = args as { org_id: string };

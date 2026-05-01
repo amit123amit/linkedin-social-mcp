@@ -218,6 +218,15 @@ export class LinkedInApiClient {
     );
   }
 
+  async getMyAdminPages(): Promise<ApiListResponse<OrganizationAcl>> {
+    // Returns all org pages where the authenticated member is an ADMINISTRATOR.
+    // Uses q=roleAssignee with the auth context (no explicit roleAssignee param needed).
+    return this.request<ApiListResponse<OrganizationAcl>>(
+      'GET',
+      '/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED&count=50',
+    );
+  }
+
   // ─── Organization Analytics (r_organization_admin) ────────────────────────
 
   async getFollowerStatistics(orgUrn: string): Promise<ApiListResponse<FollowerStatistics>> {
